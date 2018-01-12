@@ -1,0 +1,18 @@
+[user]
+   email = cjhust@126.com
+   name = shengyan
+[alias]
+   co = checkout
+   ci = commit -s
+   ca = commit -a -s
+   st = status
+   br = branch
+   oneline = log --pretty=oneline --since='2 days ago'
+   week = log --pretty=oneline --since='7 days ago'
+   onelog = log -p -1
+   shorten = "!sh -c 'curl -i  http://git.io -F url=$1' -"
+[color]
+   status = auto
+   branch = auto
+   ui = auto
+
