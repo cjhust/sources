@@ -1,0 +1,143 @@
+diff -Naur old/ssl/ssl_asn1.c new/ssl/ssl_asn1.c
+--- old/ssl/ssl_asn1.c	2016-09-26 17:49:07.000000000 +0800
++++ new/ssl/ssl_asn1.c	2017-11-24 16:57:24.704150474 +0800
+@@ -274,8 +274,12 @@
+     M_ASN1_I2D_len(&(a.version), i2d_ASN1_INTEGER);
+     M_ASN1_I2D_len(&(a.ssl_version), i2d_ASN1_INTEGER);
+     M_ASN1_I2D_len(&(a.cipher), i2d_ASN1_OCTET_STRING);
+-    M_ASN1_I2D_len(&(a.session_id), i2d_ASN1_OCTET_STRING);
+     M_ASN1_I2D_len(&(a.master_key), i2d_ASN1_OCTET_STRING);
++
++/*
++ * session ticket trim by shengyan 2017-11-23
++*/
++#if 0
+ #ifndef OPENSSL_NO_KRB5
+     if (in->krb5_client_princ_len)
+         M_ASN1_I2D_len(&(a.krb5_princ), i2d_ASN1_OCTET_STRING);
+@@ -321,14 +325,19 @@
+         M_ASN1_I2D_len_EXP_opt(&(a.srp_username), i2d_ASN1_OCTET_STRING, 12,
+                                v12);
+ #endif                          /* OPENSSL_NO_SRP */
++#endif
+ 
+     M_ASN1_I2D_seq_total();
+ 
+     M_ASN1_I2D_put(&(a.version), i2d_ASN1_INTEGER);
+     M_ASN1_I2D_put(&(a.ssl_version), i2d_ASN1_INTEGER);
+     M_ASN1_I2D_put(&(a.cipher), i2d_ASN1_OCTET_STRING);
+-    M_ASN1_I2D_put(&(a.session_id), i2d_ASN1_OCTET_STRING);
+     M_ASN1_I2D_put(&(a.master_key), i2d_ASN1_OCTET_STRING);
++
++/*
++ * session ticket trim by shengyan 2017-11-23
++*/
++#if 0
+ #ifndef OPENSSL_NO_KRB5
+     if (in->krb5_client_princ_len)
+         M_ASN1_I2D_put(&(a.krb5_princ), i2d_ASN1_OCTET_STRING);
+@@ -375,6 +384,8 @@
+         M_ASN1_I2D_put_EXP_opt(&(a.srp_username), i2d_ASN1_OCTET_STRING, 12,
+                                v12);
+ #endif                          /* OPENSSL_NO_SRP */
++#endif
++
+     M_ASN1_I2D_finish();
+ }
+ 
+@@ -443,6 +454,10 @@
+     ret->cipher = NULL;
+     ret->cipher_id = id;
+ 
++/*
++ * session ticket trim session_id by shengyan 2017-11-23
++*/
++#if 0
+     M_ASN1_D2I_get_x(ASN1_OCTET_STRING, osp, d2i_ASN1_OCTET_STRING);
+     if ((ssl_version >> 8) >= SSL3_VERSION_MAJOR)
+         i = SSL3_MAX_SSL_SESSION_ID_LENGTH;
+@@ -457,6 +472,7 @@
+     ret->session_id_length = os.length;
+     OPENSSL_assert(os.length <= (int)sizeof(ret->session_id));
+     memcpy(ret->session_id, os.data, os.length);
++#endif
+ 
+     M_ASN1_D2I_get_x(ASN1_OCTET_STRING, osp, d2i_ASN1_OCTET_STRING);
+     if (os.length > SSL_MAX_MASTER_KEY_LENGTH)
+@@ -467,6 +483,10 @@
+ 
+     os.length = 0;
+ 
++/*
++ * ssession ticket trim by shengyan 2017-11-23
++*/
++#if 0
+ #ifndef OPENSSL_NO_KRB5
+     os.length = 0;
+     M_ASN1_D2I_get_opt(osp, d2i_ASN1_OCTET_STRING, V_ASN1_OCTET_STRING);
+@@ -634,6 +654,7 @@
+     } else
+         ret->srp_username = NULL;
+ #endif                          /* OPENSSL_NO_SRP */
++#endif
+ 
+     M_ASN1_D2I_Finish(a, SSL_SESSION_free, SSL_F_D2I_SSL_SESSION);
+ }
+diff -Naur old/ssl/ssl_sess.c new/ssl/ssl_sess.c
+--- old/ssl/ssl_sess.c	2016-09-26 17:49:07.000000000 +0800
++++ new/ssl/ssl_sess.c	2017-11-24 16:57:16.031119066 +0800
+@@ -143,10 +143,20 @@
+ #endif
+ #include "ssl_locl.h"
+ 
++/* The address of this is a magic value, a pointer to which is returned by
++ * SSL_magic_pending_session_ptr(). It allows a session callback to indicate
++ * that it needs to asynchronously fetch session information. */
++static char g_pending_session_magic;
++
+ static void SSL_SESSION_list_remove(SSL_CTX *ctx, SSL_SESSION *s);
+ static void SSL_SESSION_list_add(SSL_CTX *ctx, SSL_SESSION *s);
+ static int remove_session_lock(SSL_CTX *ctx, SSL_SESSION *c, int lck);
+ 
++SSL_SESSION *SSL_magic_pending_session_ptr()
++{
++    return (SSL_SESSION*) &g_pending_session_magic;
++}
++
+ SSL_SESSION *SSL_get_session(const SSL *ssl)
+ /* aka SSL_get0_session; gets 0 objects, just returns a copy of the pointer */
+ {
+@@ -626,6 +636,12 @@
+         int copy = 1;
+ 
+         if ((ret = s->session_ctx->get_session_cb(s, session_id, len, &copy))) {
++            if (ret == SSL_magic_pending_session_ptr()) {
++                /* This is a magic value which indicates that
++                 * the callback needs to unwind the stack and
++                 * figure out the session asynchronously. */
++                return PENDING_SESSION;
++            }
+             s->session_ctx->stats.sess_cb_hit++;
+ 
+             /*
+@@ -656,8 +672,11 @@
+     if (ret == NULL)
+         goto err;
+ 
++/*
++ * session ticket trim by shengyan 2017-11-23
++*/
++#if 0
+     /* Now ret is non-NULL and we own one of its reference counts. */
+-
+     if (ret->sid_ctx_length != s->sid_ctx_length
+         || memcmp(ret->sid_ctx, s->sid_ctx, ret->sid_ctx_length)) {
+         /*
+@@ -666,6 +685,7 @@
+          */
+         goto err;               /* treat like cache miss */
+     }
++#endif
+ 
+     if ((s->verify_mode & SSL_VERIFY_PEER) && s->sid_ctx_length == 0) {
+         /*
