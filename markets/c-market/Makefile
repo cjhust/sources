@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -g -O0 -fPIC -Wall -lpthread
-B_OBJ = backtrace epollrdhub malloc_stats sprintf
+B_OBJ = backtrace epollrdhub malloc_stats sprintf pragma
 N_OBJ = client_body_timeout client_header_timeout
 
 all: $(N_OBJ)
@@ -24,6 +24,8 @@ malloc_stats: malloc_stats.o
 sprintf: sprintf.o
 	$(CC) $^ $(CFLAGS) -o $@
 
+pragma: pragma.o
+	$(CC) $^ $(CFLAGS) -o $@
 
 clean:
 	rm -f $(B_OBJ) $(N_OBJ) *.o
