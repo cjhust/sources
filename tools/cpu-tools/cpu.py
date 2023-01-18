@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# python2.7 cpu.py
 
 
 import os

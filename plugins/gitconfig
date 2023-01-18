@@ -1,6 +1,6 @@
 [user]
    email = cjhust@126.com
-   name = shengyan
+   name = cjhust
 [alias]
    co = checkout
    ci = commit -s
